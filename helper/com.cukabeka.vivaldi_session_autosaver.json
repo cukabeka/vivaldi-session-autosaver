@@ -1,0 +1,9 @@
+{
+  "name": "com.cukabeka.vivaldi_session_autosaver",
+  "description": "Vivaldi Session Autosaver native messaging host",
+  "path": "@HOME@/.vivaldi-session-autosaver/bin/nm_host_wrapper.sh",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://REPLACE_EXTENSION_ID/"
+  ]
+}

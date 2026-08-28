@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Vivaldi Session Autosaver",
+  "version": "0.2.0",
+  "description": "Automatic point-in-time snapshots of your Vivaldi sessions and workspaces, with a status dashboard and recovery report.",
+  "permissions": [
+    "nativeMessaging",
+    "storage",
+    "alarms"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Vivaldi Session Autosaver",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1YC9/yzgcxlgYVMC1r0es0UR4ntceMNjwpIC6EEFAOzj3X3GMcsg2nB8aHFiwxzPsGibiHXJbV78e6nouhn/Ukwawe+hPNeOTe4bt9+ruwVrqRj8L4ki1Ri9ia7sCyWqgOF5kgkkGoaiCcYBYXRKR9qogTU5ejA9AnFbP2CeUFcCUR3B39Fu3+pLtV/d8Frxqsp3JAsnVkprBEuTwZYnKQBYTnPUk+uRPRdI2AlAcuIR5Fbg0Lt2gaz/9UJWF/M+ZzyJJiSZ9l8X8TY1U6k1xRrR1f7724D8qcDtVjvw8wOoZtCKXhCLtVDPKizhJwPTaBDdxfLxAdIPsjfp/1xfiQIDAQAB"
+}

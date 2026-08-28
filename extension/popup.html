@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --card: rgba(255, 255, 255, 0.85);
+      --text: #1d1d1f;
+      --text2: #6e6e73;
+      --sep: rgba(0, 0, 0, 0.08);
+      --blue: #0071e3;
+      --green: #34c759;
+      --red: #ff3b30;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font: 13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      width: 340px; background: var(--bg); color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+    header { display: flex; align-items: center; gap: 8px; padding: 14px 16px 10px; }
+    header img { width: 22px; height: 22px; border-radius: 6px; }
+    header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+    header .status-dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+    header .status-dot.ok { background: var(--green); }
+    .card {
+      background: var(--card); border-radius: 12px;
+      margin: 0 12px 10px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 14px; border-bottom: 1px solid var(--sep);
+    }
+    .row:last-child { border-bottom: none; }
+    .row .label { color: var(--text2); }
+    .row .value { font-weight: 500; font-variant-numeric: tabular-nums; }
+    .ok { color: var(--green); } .bad { color: var(--red); }
+    .err {
+      margin: 0 12px 10px; padding: 8px 12px;
+      background: rgba(255, 59, 48, 0.08); color: var(--red);
+      border-radius: 10px; font-size: 12px;
+    }
+    .section-title {
+      font-size: 11px; font-weight: 600; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 4px 26px 6px;
+    }
+    #snapList { max-height: 180px; overflow-y: auto; }
+    .snap {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 14px; border-bottom: 1px solid var(--sep);
+      font-size: 12px;
+    }
+    .snap:last-child { border-bottom: none; }
+    .snap .when { font-variant-numeric: tabular-nums; }
+    .snap .right { display: flex; align-items: center; gap: 6px; }
+    .snap .size { color: var(--text2); font-variant-numeric: tabular-nums; }
+    .snap .bucket {
+      font-size: 10px; padding: 1px 7px; border-radius: 99px;
+      background: rgba(0, 113, 227, 0.1); color: var(--blue);
+    }
+    .actions { display: flex; gap: 8px; padding: 2px 12px 12px; }
+    button {
+      flex: 1; padding: 9px 0; border: none; border-radius: 10px;
+      font: 600 13px -apple-system, sans-serif; cursor: pointer;
+      background: var(--blue); color: #fff;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    button.secondary { background: rgba(0, 113, 227, 0.12); color: var(--blue); }
+    #setup { margin: 0 12px 12px; padding: 12px 14px; }
+    #setup p { font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+    #setup pre {
+      background: rgba(0,0,0,0.05); border-radius: 8px;
+      padding: 8px 10px; font-size: 11px;
+      white-space: pre-wrap; word-break: break-all;
+      font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    }
+    #copyBtn { margin-top: 8px; width: 100%; }
+    .hidden { display: none; }
+    .footnote { text-align: center; font-size: 10px; color: var(--text2); padding: 0 0 10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="" />
+    <h1>Session Autosaver</h1>
+    <span class="status-dot" id="statusDot"></span>
+  </header>
+
+  <div class="card">
+    <div class="row"><span class="label">Last backup</span><span class="value" id="lastBackup">—</span></div>
+    <div class="row"><span class="label">Disk used</span><span class="value" id="size">—</span></div>
+    <div class="row"><span class="label">Helper</span><span class="value" id="contact">—</span></div>
+  </div>
+
+  <div class="err hidden" id="lastError"></div>
+
+  <div class="section-title">Snapshots (GFS retention)</div>
+  <div class="card" id="snapList"></div>
+
+  <div class="actions">
+    <button id="backupBtn">Back Up Now</button>
+    <button class="secondary" id="reportBtn">Recovery Report</button>
+  </div>
+
+  <div id="setup" class="card hidden">
+    <p><b>Helper not connected.</b> Install it via Terminal:</p>
+    <pre id="installCmd"></pre>
+    <button class="secondary" id="copyBtn">Copy command</button>
+  </div>
+
+  <div class="footnote">Snapshots live in ~/.vivaldi-session-autosaver</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
