@@ -50,6 +50,15 @@ async function persistStatus(status) {
   updateBadge();
 }
 
+function parseStamp(iso) {
+  if (!iso) return null;
+  // Snapshot stamps are compact UTC: "20260828T221857Z".
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(iso);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+  const d = new Date(iso.replace("Z", "+00:00"));
+  return isNaN(d) ? null : d;
+}
+
 async function updateBadge() {
   const { lastStatus, lastPingAt } = await chrome.storage.local.get([
     "lastStatus",
@@ -66,8 +75,12 @@ async function updateBadge() {
     await setBadge("!", "#d32f2f"); // stale — no contact
     return;
   }
-  const sinceBackupMin =
-    (Date.now() - Date.parse(lastStatus.last_backup.replace("Z", "+00:00"))) / 60000;
+  const backup = parseStamp(lastStatus.last_backup);
+  if (!backup) {
+    await setBadge("?", "#9e9e9e");
+    return;
+  }
+  const sinceBackupMin = (Date.now() - backup.getTime()) / 60000;
   const text = sinceBackupMin < 60 ? `${Math.floor(sinceBackupMin)}m` : `${Math.floor(sinceBackupMin / 60)}h`;
   const color = sinceBackupMin < 30 ? "#2e7d32" : sinceBackupMin < 90 ? "#f9a825" : "#d32f2f";
   await setBadge(text, color);
