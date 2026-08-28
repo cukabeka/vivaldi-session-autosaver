@@ -56,6 +56,9 @@ echo "    using $PY_BIN"
 
 echo "==> Installing helper to $BIN_DIR"
 mkdir -p "$BIN_DIR" "$APP_DIR/snapshots"
+sed -e "s|@HOME@|$HOME|" \
+    "$REPO_DIR/extension/popup.js" > "$REPO_DIR/extension/popup.js.tmp" \
+    && mv "$REPO_DIR/extension/popup.js.tmp" "$REPO_DIR/extension/popup.js"
 cp "$REPO_DIR/helper/vivaldi_session_autosaver.py" "$BIN_DIR/"
 cp "$REPO_DIR/helper/nm_host.py" "$BIN_DIR/"
 chmod +x "$BIN_DIR"/*.py

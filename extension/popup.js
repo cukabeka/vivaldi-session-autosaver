@@ -94,8 +94,9 @@ $("backupBtn").addEventListener("click", () => {
 });
 
 // Open the helper-generated recovery report in a new tab.
+// file:// URLs cannot use "~", so the installer bakes in the real home path.
 $("reportBtn").addEventListener("click", () => {
-  chrome.tabs.create({ url: "file:///~/.vivaldi-session-autosaver/recovery_report.html" });
+  chrome.tabs.create({ url: "file:///Users/stefbu/.vivaldi-session-autosaver/recovery_report.html" });
 });
 
 render();
