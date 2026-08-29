@@ -48,12 +48,14 @@ def handle(msg: dict) -> dict:
         status = core.load_status()
         status.setdefault("interval_min", INTERVAL_MIN)
         status.setdefault("snapshots", core.list_snapshots())
+        status.setdefault("report_path", str(core.REPORT_FILE))
         return {"type": "status", "status": status}
     if mtype == "backup_now":
         try:
             sessions = core.find_sessions_dir(None)
             status = core.snapshot(sessions, keep=48)
             status.setdefault("interval_min", INTERVAL_MIN)
+            status.setdefault("report_path", str(core.REPORT_FILE))
             try:
                 core.build_report(None, None)
             except Exception:  # report is best-effort

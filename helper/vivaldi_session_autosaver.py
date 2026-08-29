@@ -27,6 +27,7 @@ APP_NAME = "vivaldi-session-autosaver"
 STATE_DIR = Path.home() / ".vivaldi-session-autosaver"
 SNAPSHOTS_DIR = STATE_DIR / "snapshots"
 STATUS_FILE = STATE_DIR / "status.json"
+REPORT_FILE = STATE_DIR / "recovery_report.html"
 SCHEMA_VERSION = 1
 HELPER_VERSION = "0.2.0"
 
@@ -464,7 +465,7 @@ def build_report(profile_dir: Path | None, snapshot_name: str | None) -> Path:
                                     and t.get("workspaceId")):
             seen[t["url"]] = t
 
-    output = STATE_DIR / "recovery_report.html"
+    output = REPORT_FILE
     generate_recovery_html(ws_map, list(seen.values()), output)
     return output
 

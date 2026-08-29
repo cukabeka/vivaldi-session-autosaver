@@ -57,21 +57,6 @@ echo "    using $PY_BIN"
 echo "==> Installing helper to $BIN_DIR"
 mkdir -p "$BIN_DIR" "$APP_DIR/snapshots"
 
-# Local paths live in .env (gitignored) — never committed to the repo.
-ENV_FILE="$REPO_DIR/.env"
-if [[ ! -f "$ENV_FILE" ]]; then
-  printf 'REPORT_HOME=%s\n' "$HOME" > "$ENV_FILE"
-  echo "==> Created $ENV_FILE (gitignored) with REPORT_HOME=$HOME"
-fi
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-REPORT_HOME="${REPORT_HOME:-$HOME}"
-
-# Bake the report path into the popup (file:// URLs cannot use "~").
-sed -e "s|@HOME@|$REPORT_HOME|" \
-    "$REPO_DIR/extension/popup.js" > "$REPO_DIR/extension/popup.js.tmp" \
-    && mv "$REPO_DIR/extension/popup.js.tmp" "$REPO_DIR/extension/popup.js"
-
 cp "$REPO_DIR/helper/vivaldi_session_autosaver.py" "$BIN_DIR/"
 cp "$REPO_DIR/helper/nm_host.py" "$BIN_DIR/"
 chmod +x "$BIN_DIR"/*.py
