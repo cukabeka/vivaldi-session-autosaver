@@ -49,6 +49,17 @@ def handle(msg: dict) -> dict:
         status.setdefault("interval_min", INTERVAL_MIN)
         status.setdefault("snapshots", core.list_snapshots())
         status.setdefault("report_path", str(core.REPORT_FILE))
+        status.setdefault("config", core.load_config())
+        return {"type": "status", "status": status}
+    if mtype == "set_config":
+        updates = msg.get("config", {})
+        allowed = {k: v for k, v in updates.items() if k == "max_disk_mb"}
+        cfg = core.write_config(**allowed)
+        freed = core.enforce_disk_budget(cfg.get("max_disk_mb"))
+        status = core.load_status()
+        status["config"] = cfg
+        status["snapshots"] = core.list_snapshots()
+        status["freed_bytes"] = freed
         return {"type": "status", "status": status}
     if mtype == "backup_now":
         try:
@@ -56,6 +67,7 @@ def handle(msg: dict) -> dict:
             status = core.snapshot(sessions, keep=48)
             status.setdefault("interval_min", INTERVAL_MIN)
             status.setdefault("report_path", str(core.REPORT_FILE))
+            status.setdefault("config", core.load_config())
             try:
                 core.build_report(None, None)
             except Exception:  # report is best-effort

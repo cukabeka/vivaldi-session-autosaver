@@ -67,6 +67,9 @@ async function render() {
     $("lastBackup").textContent = fmtTime(lastStatus.last_backup);
     $("size").textContent = fmtBytes(lastStatus.total_bytes);
     renderSnaps(lastStatus.snapshots);
+    if (document.activeElement !== $("budgetInput")) {
+      $("budgetInput").value = lastStatus.config?.max_disk_mb ?? 0;
+    }
     const err = $("lastError");
     if (lastStatus.last_error) {
       err.textContent = `Last error: ${lastStatus.last_error}`;
@@ -91,6 +94,14 @@ $("copyBtn").addEventListener("click", async () => {
 $("backupBtn").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "backup_now" });
   setTimeout(render, 1500);
+});
+
+// Disk budget: 0 = unlimited. The helper enforces it after each backup.
+$("budgetSave").addEventListener("click", () => {
+  const mb = Math.max(0, parseInt($("budgetInput").value, 10) || 0);
+  chrome.runtime.sendMessage({ type: "set_config", config: { max_disk_mb: mb } });
+  $("budgetSave").textContent = "Saved";
+  setTimeout(() => { $("budgetSave").textContent = "Save"; render(); }, 1200);
 });
 
 // Open the helper-generated recovery report in a new tab.

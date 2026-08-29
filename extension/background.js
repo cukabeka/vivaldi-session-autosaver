@@ -112,6 +112,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       connect();
       sendResponse({ ok: false, error: "helper not connected" });
     }
+  } else if (msg?.type === "set_config") {
+    if (port) {
+      port.postMessage({ type: "set_config", config: msg.config });
+      sendResponse({ ok: true });
+    } else {
+      sendResponse({ ok: false, error: "helper not connected" });
+    }
   } else if (msg?.type === "refresh") {
     if (port) port.postMessage({ type: "status" });
     sendResponse({ ok: !!port });

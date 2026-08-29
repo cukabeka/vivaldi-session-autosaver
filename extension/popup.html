@@ -94,6 +94,15 @@
     <div class="row"><span class="label">Last backup</span><span class="value" id="lastBackup">—</span></div>
     <div class="row"><span class="label">Disk used</span><span class="value" id="size">—</span></div>
     <div class="row"><span class="label">Helper</span><span class="value" id="contact">—</span></div>
+    <div class="row">
+      <span class="label">Disk budget</span>
+      <span class="value" style="display:flex;align-items:center;gap:6px">
+        <input id="budgetInput" type="number" min="0" step="50"
+               style="width:64px;padding:3px 6px;border:1px solid var(--sep);border-radius:6px;font:inherit;text-align:right" />
+        <span style="color:var(--text2)">MB</span>
+        <button id="budgetSave" class="secondary" style="flex:0 0 auto;padding:3px 10px;font-size:11px">Save</button>
+      </span>
+    </div>
   </div>
 
   <div class="err hidden" id="lastError"></div>

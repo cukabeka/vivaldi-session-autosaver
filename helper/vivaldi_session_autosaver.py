@@ -28,8 +28,13 @@ STATE_DIR = Path.home() / ".vivaldi-session-autosaver"
 SNAPSHOTS_DIR = STATE_DIR / "snapshots"
 STATUS_FILE = STATE_DIR / "status.json"
 REPORT_FILE = STATE_DIR / "recovery_report.html"
+CONFIG_FILE = STATE_DIR / "config.json"
 SCHEMA_VERSION = 1
 HELPER_VERSION = "0.2.0"
+
+# Default disk budget for all snapshots combined, in MB. 0 = unlimited
+# (GFS retention only). Configurable via the extension popup or CLI.
+DEFAULT_MAX_DISK_MB = 0
 
 DEFAULT_VIVALDI_PROFILE = (
     Path.home() / "Library" / "Application Support" / "Vivaldi" / "Default"
@@ -112,6 +117,21 @@ def load_status() -> dict:
         return {}
 
 
+def load_config() -> dict:
+    try:
+        return json.loads(CONFIG_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def write_config(**updates) -> dict:
+    cfg = load_config()
+    cfg.update(updates)
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(CONFIG_FILE, cfg)
+    return cfg
+
+
 def write_status(**updates) -> dict:
     status = load_status()
     status.update(
@@ -168,6 +188,7 @@ def snapshot(sessions_dir: Path, keep: int) -> dict:
         raise
 
     apply_retention(keep)
+    enforce_disk_budget()
     existing = sorted(d for d in SNAPSHOTS_DIR.iterdir() if d.is_dir())
     status = write_status(
         last_backup=stamp,
@@ -245,6 +266,34 @@ def apply_retention(keep: int = 0) -> None:
     for _ts, d in snaps:
         if d not in keep_set:
             shutil.rmtree(d, ignore_errors=True)
+
+
+def enforce_disk_budget(max_disk_mb: int | None = None) -> int:
+    """Delete oldest snapshots until total size fits the budget.
+
+    The newest snapshot is always kept. Returns bytes freed.
+    """
+    if max_disk_mb is None:
+        max_disk_mb = load_config().get("max_disk_mb", DEFAULT_MAX_DISK_MB)
+    if not max_disk_mb or max_disk_mb <= 0:
+        return 0
+    budget = max_disk_mb * 1024 * 1024
+
+    snaps = sorted(
+        (d for d in SNAPSHOTS_DIR.iterdir() if d.is_dir()),
+        key=lambda d: d.name,
+        reverse=True,
+    )
+    freed = 0
+    total = 0
+    sizes = {d: dir_size(d) for d in snaps}
+    for i, d in enumerate(snaps):
+        total += sizes[d]
+        # Keep the newest (i == 0) even if it alone exceeds the budget.
+        if total > budget and i > 0:
+            freed += sizes[d]
+            shutil.rmtree(d, ignore_errors=True)
+    return freed
 
 
 def list_snapshots() -> list:
@@ -497,6 +546,16 @@ def cmd_status(_args) -> int:
     return 0
 
 
+def cmd_config(args) -> int:
+    if args.max_disk_mb is not None:
+        cfg = write_config(max_disk_mb=args.max_disk_mb)
+        enforce_disk_budget(cfg["max_disk_mb"])
+    else:
+        cfg = load_config()
+    print(json.dumps(cfg, indent=2))
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog=APP_NAME)
     parser.add_argument("--profile-dir", type=Path, default=None,
@@ -506,6 +565,10 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="cmd")
     sub.add_parser("backup", help="take a snapshot now").set_defaults(func=cmd_backup)
     sub.add_parser("status", help="print current status.json").set_defaults(func=cmd_status)
+    cfg = sub.add_parser("config", help="show/set configuration")
+    cfg.add_argument("--max-disk-mb", type=int, default=None,
+                     help="max total disk for snapshots in MB (0 = unlimited)")
+    cfg.set_defaults(func=cmd_config)
     rep = sub.add_parser("report", help="generate HTML recovery report")
     rep.add_argument("--snapshot", default=None,
                      help="snapshot name (default: newest)")
