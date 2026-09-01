@@ -22,7 +22,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import vivaldi_session_autosaver as core  # noqa: E402
 
-INTERVAL_MIN = 15
+
+def _interval_min() -> int:
+    return core.load_config().get("interval_min", core.DEFAULT_INTERVAL_MIN)
 
 
 def read_message() -> dict | None:
@@ -46,14 +48,14 @@ def handle(msg: dict) -> dict:
     mtype = msg.get("type")
     if mtype == "status":
         status = core.load_status()
-        status.setdefault("interval_min", INTERVAL_MIN)
+        status.setdefault("interval_min", _interval_min())
         status.setdefault("snapshots", core.list_snapshots())
         status.setdefault("report_path", str(core.REPORT_FILE))
         status.setdefault("config", core.load_config())
         return {"type": "status", "status": status}
     if mtype == "set_config":
         updates = msg.get("config", {})
-        allowed = {k: v for k, v in updates.items() if k == "max_disk_mb"}
+        allowed = {k: v for k, v in updates.items() if k in ("max_disk_mb", "interval_min")}
         cfg = core.write_config(**allowed)
         freed = core.enforce_disk_budget(cfg.get("max_disk_mb"))
         status = core.load_status()
@@ -65,7 +67,7 @@ def handle(msg: dict) -> dict:
         try:
             sessions = core.find_sessions_dir(None)
             status = core.snapshot(sessions, keep=48)
-            status.setdefault("interval_min", INTERVAL_MIN)
+            status.setdefault("interval_min", _interval_min())
             status.setdefault("report_path", str(core.REPORT_FILE))
             status.setdefault("config", core.load_config())
             try:
@@ -79,8 +81,10 @@ def handle(msg: dict) -> dict:
 
 
 def periodic_backup() -> None:
-    """Snapshot on start, then every INTERVAL_MIN minutes.
+    """Snapshot on start, then every interval_min minutes.
 
+    Re-reads the interval from config each loop iteration so it picks up
+    changes made via set_config or CLI without restarting Vivaldi.
     Runs in a daemon thread; the process only lives as long as Vivaldi
     keeps the native messaging port open.
     """
@@ -94,10 +98,13 @@ def periodic_backup() -> None:
                 pass
         except Exception as exc:  # noqa: BLE001
             try:
-                core.write_status(last_error=str(exc), interval_min=INTERVAL_MIN)
+                core.write_status(last_error=str(exc), interval_min=_interval_min())
             except Exception:
                 pass
-        time.sleep(INTERVAL_MIN * 60)
+        interval = _interval_min()
+        if interval < 1:
+            interval = core.DEFAULT_INTERVAL_MIN
+        time.sleep(interval * 60)
 
 
 def main() -> int:

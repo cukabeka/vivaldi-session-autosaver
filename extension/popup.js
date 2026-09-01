@@ -70,6 +70,11 @@ async function render() {
     if (document.activeElement !== $("budgetInput")) {
       $("budgetInput").value = lastStatus.config?.max_disk_mb ?? 0;
     }
+    if (document.activeElement !== $("intervalInput")) {
+      $("intervalInput").value = lastStatus.interval_min ?? 15;
+    }
+    const min = lastStatus.interval_min;
+    $("intervalDisplay").textContent = min ? `every ${min} min` : "—";
     const err = $("lastError");
     if (lastStatus.last_error) {
       err.textContent = `Last error: ${lastStatus.last_error}`;
@@ -102,6 +107,20 @@ $("budgetSave").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "set_config", config: { max_disk_mb: mb } });
   $("budgetSave").textContent = "Saved";
   setTimeout(() => { $("budgetSave").textContent = "Save"; render(); }, 1200);
+});
+
+// Interval: generates a CLI command and copies it — the helper owns config,
+// so we don't auto-save here. Run the command in a terminal, then click
+// "Reload extension" in vivaldi://extensions to pick it up.
+$("intervalCliBtn").addEventListener("click", async () => {
+  const min = Math.max(1, parseInt($("intervalInput").value, 10) || 15);
+  const cmd = "~/.vivaldi-session-autosaver/bin/vivaldi_session_autosaver.py config --interval-min " + min;
+  try {
+    await navigator.clipboard.writeText(cmd);
+  } catch { /* clipboard not available */ }
+  $("intervalCliBtn").textContent = "Copied!";
+  $("intervalCliBtn").title = cmd;
+  setTimeout(() => { $("intervalCliBtn").textContent = "Get CLI"; }, 2000);
 });
 
 // Open the helper-generated recovery report in a new tab.

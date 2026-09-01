@@ -32,9 +32,18 @@ CONFIG_FILE = STATE_DIR / "config.json"
 SCHEMA_VERSION = 1
 HELPER_VERSION = "0.2.0"
 
+# Per-snapshot manifest recording each stored file (size/mtime) so unchanged
+# files can be hardlinked from the previous snapshot instead of re-compressed.
+MANIFEST_NAME = ".manifest.json"
+
+# Sentinel file that records which snapshot fingerprint the HTML report was
+# last built from — avoids rebuilding when nothing changed.
+REPORT_FINGERPRINT_FILE = STATE_DIR / ".report_fingerprint"
+
 # Default disk budget for all snapshots combined, in MB. 0 = unlimited
 # (GFS retention only). Configurable via the extension popup or CLI.
 DEFAULT_MAX_DISK_MB = 0
+DEFAULT_INTERVAL_MIN = 15
 
 DEFAULT_VIVALDI_PROFILE = (
     Path.home() / "Library" / "Application Support" / "Vivaldi" / "Default"
@@ -171,17 +180,48 @@ def snapshot(sessions_dir: Path, keep: int) -> dict:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     staging = SNAPSHOTS_DIR / f".staging-{stamp}"
     dest = SNAPSHOTS_DIR / stamp
+
+    # Hardlink dedup: unchanged files are linked from the previous snapshot
+    # instead of re-compressed — near-zero CPU for the common case.
+    prev_dir = existing[-1] if existing else None
+    prev_manifest = _load_manifest(prev_dir) if prev_dir else {}
+    manifest = {}
     try:
         for src, rel in iter_backup_files(sessions_dir):
-            out = staging / rel
-            out.parent.mkdir(parents=True, exist_ok=True)
-            # gzip SNSS files (~87% smaller); tiny files copied as-is.
-            if src.stat().st_size > 4096:
-                with open(src, "rb") as fin, gzip.open(f"{out}{GZIP_SUFFIX}", "wb") as fout:
+            st = src.stat()
+            key = str(rel)
+            prev = prev_manifest.get(key)
+            if (prev and prev["size"] == st.st_size
+                    and prev["mtime"] == int(st.st_mtime)
+                    and (prev_dir / prev["stored"]).exists()):
+                stored = prev["stored"]
+                target = staging / stored
+                target.parent.mkdir(parents=True, exist_ok=True)
+                os.link(prev_dir / stored, target)
+                manifest[key] = {"size": st.st_size,
+                                 "mtime": int(st.st_mtime),
+                                 "stored": stored}
+                continue
+            if st.st_size > 4096:
+                stored = f"{rel}{GZIP_SUFFIX}"
+                out = staging / stored
+                out.parent.mkdir(parents=True, exist_ok=True)
+                # Level 6: ~2x faster than default 9, minimal size difference.
+                with open(src, "rb") as fin, \
+                        gzip.open(out, "wb", compresslevel=6) as fout:
                     shutil.copyfileobj(fin, fout)
             else:
+                stored = str(rel)
+                out = staging / stored
+                out.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, out)
+            manifest[key] = {"size": st.st_size,
+                             "mtime": int(st.st_mtime),
+                             "stored": stored}
+        _write_manifest(staging, manifest)
         (staging / ".fingerprint").write_text(fingerprint + "\n")
+        if dest.exists():
+            shutil.rmtree(dest)
         os.replace(staging, dest)
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)
@@ -203,6 +243,19 @@ def snapshot(sessions_dir: Path, keep: int) -> dict:
 
 def dir_size(path: Path) -> int:
     return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+
+def _load_manifest(snap_dir: Path) -> dict:
+    """Load the per-snapshot manifest tracking stored files."""
+    try:
+        return json.loads((snap_dir / MANIFEST_NAME).read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _write_manifest(staging: Path, manifest: dict) -> None:
+    """Write the per-snapshot manifest next to the data files."""
+    (staging / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2))
 
 
 # GFS retention (Grandfather-Father-Son): keep the newest N snapshots per
@@ -490,7 +543,11 @@ show('{first_ws}');
 
 
 def build_report(profile_dir: Path | None, snapshot_name: str | None) -> Path:
-    """Extract tabs from the newest (or named) snapshot and write the HTML."""
+    """Extract tabs from the newest (or named) snapshot and write the HTML.
+
+    Skips rebuilding if the newest snapshot hasn't changed since the last
+    report was generated (tracked via REPORT_FINGERPRINT_FILE).
+    """
     sessions = find_sessions_dir(profile_dir)
     ws_map = load_workspaces(profile_dir or DEFAULT_VIVALDI_PROFILE)
 
@@ -501,6 +558,17 @@ def build_report(profile_dir: Path | None, snapshot_name: str | None) -> Path:
         if not snaps:
             raise FileNotFoundError("no snapshots available — run a backup first")
         snap = snaps[-1]
+        # Fingerprint gate: skip rebuild if snapshot content didn't change.
+        try:
+            last_fp = REPORT_FINGERPRINT_FILE.read_text().strip()
+        except OSError:
+            last_fp = ""
+        snap_fp = ""
+        fp_file = snap / ".fingerprint"
+        if fp_file.exists():
+            snap_fp = fp_file.read_text().strip()
+        if last_fp and last_fp == snap_fp:
+            return REPORT_FILE
 
     tabs = []
     for f in sorted(snap.rglob("*")):
@@ -516,6 +584,9 @@ def build_report(profile_dir: Path | None, snapshot_name: str | None) -> Path:
 
     output = REPORT_FILE
     generate_recovery_html(ws_map, list(seen.values()), output)
+    # Record the fingerprint for the next call.
+    if snap_fp:
+        REPORT_FINGERPRINT_FILE.write_text(snap_fp + "\n")
     return output
 
 
@@ -547,9 +618,15 @@ def cmd_status(_args) -> int:
 
 
 def cmd_config(args) -> int:
+    updates = {}
     if args.max_disk_mb is not None:
-        cfg = write_config(max_disk_mb=args.max_disk_mb)
-        enforce_disk_budget(cfg["max_disk_mb"])
+        updates["max_disk_mb"] = args.max_disk_mb
+    if args.interval_min is not None:
+        updates["interval_min"] = args.interval_min
+    if updates:
+        cfg = write_config(**updates)
+        if "max_disk_mb" in updates:
+            enforce_disk_budget(cfg.get("max_disk_mb"))
     else:
         cfg = load_config()
     print(json.dumps(cfg, indent=2))
@@ -568,6 +645,8 @@ def main(argv=None) -> int:
     cfg = sub.add_parser("config", help="show/set configuration")
     cfg.add_argument("--max-disk-mb", type=int, default=None,
                      help="max total disk for snapshots in MB (0 = unlimited)")
+    cfg.add_argument("--interval-min", type=int, default=None,
+                     help="backup interval in minutes (default 15)")
     cfg.set_defaults(func=cmd_config)
     rep = sub.add_parser("report", help="generate HTML recovery report")
     rep.add_argument("--snapshot", default=None,
